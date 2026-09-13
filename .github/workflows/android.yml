@@ -32,8 +32,19 @@ jobs:
       - name: Build APKs
         run: gradle --no-daemon :app:assembleDebug :app:assembleRelease
 
+      - name: Package Magisk module
+        run: |
+          rm -f magisk-module/system/priv-app/O0AIControl/.placeholder
+          cp app/build/outputs/apk/debug/app-debug.apk magisk-module/system/priv-app/O0AIControl/O0AIControl.apk
+          chmod 0755 magisk-module/service.sh
+          chmod 0755 magisk-module/system/bin/o0ai-control-provision
+          mkdir -p dist
+          (cd magisk-module && zip -r ../dist/o0ai-control-magisk-auto-owner.zip .)
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: o0ai-control-apks
-          path: app/build/outputs/apk/**/*.apk
+          path: |
+            app/build/outputs/apk/**/*.apk
+            dist/o0ai-control-magisk-auto-owner.zip
