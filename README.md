@@ -1,6 +1,6 @@
 # O0AI 设备管控软件
 
-这是一个面向 Android 8.1 的 Java 原型工程，供系统集成和 GitHub Actions 编译使用。
+这是一个面向 Android 8.1 的 Java 原型工程，供系统集成和 GitHub Actions 编译使用。`minSdk` 为 27，`targetSdk` 为 34：设备最低支持 Android 8.1，同时通过当前 Android SDK 的发布检查。
 
 软件没有 `MAIN/LAUNCHER` 图标入口，不会作为普通应用显示在桌面；它只声明了无图标的 HOME/Kiosk 入口。开发阶段可以通过 ADB 打开管理页面：
 

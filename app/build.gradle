@@ -9,7 +9,8 @@ android {
     defaultConfig {
         applicationId 'com.o0ai.control'
         minSdk 27
-        targetSdk 27
+        // Keep Android 8.1 support while targeting a current SDK for release lint.
+        targetSdk 34
         versionCode 1
         versionName '0.1.0'
     }
