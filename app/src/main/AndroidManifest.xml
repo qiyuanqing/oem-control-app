@@ -1,0 +1,80 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+    <application
+        android:allowBackup="false"
+        android:label="设备管控"
+        android:supportsRtl="true">
+
+        <receiver
+            android:name=".admin.ControlAdminReceiver"
+            android:description="@string/device_admin_description"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- No MAIN/LAUNCHER filter: the component has no desktop icon. -->
+        <activity
+            android:name=".ui.AdminActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:label="设备管控" />
+
+        <!-- HOME only, no LAUNCHER icon. This is the kiosk desktop. -->
+        <activity
+            android:name=".ui.KioskActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="设备桌面">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.PermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:label="权限管理" />
+
+        <receiver
+            android:name=".boot.BootReceiver"
+            android:directBootAware="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The receiver authenticates the caller UID and password itself. -->
+        <receiver
+            android:name=".debug.DebugCommandReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.o0ai.control.action.DEBUG_STATUS" />
+                <action android:name="com.o0ai.control.action.DEBUG_UNLOCK" />
+                <action android:name="com.o0ai.control.action.DEBUG_LOCK" />
+                <action android:name="com.o0ai.control.action.POLICY_RESTORE" />
+                <action android:name="com.o0ai.control.action.OPEN_SETTINGS" />
+                <action android:name="com.o0ai.control.action.OPEN_ADMIN" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".service.ControlService"
+            android:exported="false" />
+    </application>
+</manifest>

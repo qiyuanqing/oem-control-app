@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">设备管控</string>
+    <string name="device_admin_description">管理设备策略、固定桌面、限制设置和应用权限。</string>
+</resources>
