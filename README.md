@@ -9,7 +9,7 @@ adb shell am broadcast -a com.o0ai.control.action.DEBUG_STATUS
 adb shell am broadcast -a com.o0ai.control.action.OPEN_ADMIN
 ```
 
-正式版本不公开管理 Activity。`OPEN_ADMIN` 由接收器检查调用方 UID，只允许 ADB shell/root 使用。
+正式版本不公开管理 Activity。`OPEN_ADMIN` 只能通过声明的系统 `DUMP` 权限调用，工程版由 ADB shell 使用。
 
 ## 功能
 

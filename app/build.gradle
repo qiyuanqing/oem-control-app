@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.o0ai.control'
-    compileSdk 35
+    compileSdk 34
 
     defaultConfig {
         applicationId 'com.o0ai.control'

@@ -3,7 +3,6 @@ package com.o0ai.control.debug;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Process;
 
 import com.o0ai.control.core.ControlPolicyController;
 import com.o0ai.control.ui.AdminActivity;
@@ -18,11 +17,6 @@ public class DebugCommandReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (getSendingUid() != Process.SHELL_UID && getSendingUid() != Process.ROOT_UID) {
-            setResultCode(1);
-            setResultData("仅允许 ADB shell 调用");
-            return;
-        }
         ControlPolicyController controller = new ControlPolicyController(context);
         String action = intent == null ? "" : intent.getAction();
         if (ACTION_STATUS.equals(action)) {

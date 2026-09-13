@@ -62,7 +62,8 @@
         <!-- The receiver authenticates the caller UID and password itself. -->
         <receiver
             android:name=".debug.DebugCommandReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.o0ai.control.action.DEBUG_STATUS" />
                 <action android:name="com.o0ai.control.action.DEBUG_UNLOCK" />
