@@ -20,10 +20,7 @@ public class ControlService extends Service {
         public void run() {
             ControlPolicyController controller = new ControlPolicyController(ControlService.this);
             if (controller.restoreExpiredTemporarySession()) {
-                Intent kiosk = new Intent(ControlService.this,
-                        com.o0ai.control.ui.KioskActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(kiosk);
+                controller.applyPolicy();
             }
             handler.postDelayed(this, 15_000L);
         }

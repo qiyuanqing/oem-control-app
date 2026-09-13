@@ -4,7 +4,6 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Process;
@@ -12,7 +11,6 @@ import android.os.UserManager;
 import android.provider.Settings;
 
 import com.o0ai.control.admin.ControlAdminReceiver;
-import com.o0ai.control.ui.KioskActivity;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -150,13 +148,6 @@ public final class ControlPolicyController {
         if (!isDeviceOwner()) return false;
         try {
             dpm.setLockTaskPackages(admin, new String[]{PACKAGE_NAME});
-            IntentFilter homeFilter = new IntentFilter(Intent.ACTION_MAIN);
-            homeFilter.addCategory(Intent.CATEGORY_HOME);
-            homeFilter.addCategory(Intent.CATEGORY_DEFAULT);
-            dpm.addPersistentPreferredActivity(
-                    admin,
-                    homeFilter,
-                    new ComponentName(context, KioskActivity.class));
             addRestrictions();
             applyOptionalRestrictions(true);
             return true;
@@ -181,13 +172,6 @@ public final class ControlPolicyController {
         if (!isDeviceOwner()) return false;
         try {
             dpm.setLockTaskPackages(admin, new String[]{PACKAGE_NAME});
-            IntentFilter homeFilter = new IntentFilter(Intent.ACTION_MAIN);
-            homeFilter.addCategory(Intent.CATEGORY_HOME);
-            homeFilter.addCategory(Intent.CATEGORY_DEFAULT);
-            dpm.addPersistentPreferredActivity(
-                    admin,
-                    homeFilter,
-                    new ComponentName(context, KioskActivity.class));
             addRestrictions();
             applyOptionalRestrictions(true);
             return true;

@@ -94,8 +94,6 @@ public class AdminActivity extends Activity {
         boolean restored = controller.lock(password.getText().toString());
         toast(restored ? "已恢复系统管控" : "恢复失败");
         if (restored) {
-            startActivity(new Intent(this, KioskActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
             finish();
             return;
         }

@@ -7,7 +7,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="设备管控"
+        android:label="@string/app_name"
         android:supportsRtl="true">
 
         <receiver
@@ -23,31 +23,17 @@
             </intent-filter>
         </receiver>
 
-        <!-- No MAIN/LAUNCHER filter: the component has no desktop icon. -->
         <activity
             android:name=".ui.AdminActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:label="设备管控" />
-
-        <!-- HOME only, no LAUNCHER icon. This is the kiosk desktop. -->
-        <activity
-            android:name=".ui.KioskActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:label="设备桌面">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
+            android:label="@string/app_name" />
 
         <activity
             android:name=".ui.PermissionActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:label="权限管理" />
+            android:label="@string/app_name" />
 
         <receiver
             android:name=".boot.BootReceiver"
@@ -59,7 +45,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- The receiver authenticates the caller UID and password itself. -->
         <receiver
             android:name=".debug.DebugCommandReceiver"
             android:exported="true"
