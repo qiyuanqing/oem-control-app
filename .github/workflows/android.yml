@@ -29,6 +29,26 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Configure stable APK signing
+        env:
+          O0AI_KEYSTORE_BASE64: ${{ secrets.O0AI_KEYSTORE_BASE64 }}
+          O0AI_KEYSTORE_PASSWORD: ${{ secrets.O0AI_KEYSTORE_PASSWORD }}
+          O0AI_KEY_ALIAS: ${{ secrets.O0AI_KEY_ALIAS }}
+          O0AI_KEY_PASSWORD: ${{ secrets.O0AI_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$O0AI_KEYSTORE_BASE64" || { echo "Missing O0AI_KEYSTORE_BASE64 repository secret"; exit 1; }
+          test -n "$O0AI_KEYSTORE_PASSWORD" || { echo "Missing O0AI_KEYSTORE_PASSWORD repository secret"; exit 1; }
+          test -n "$O0AI_KEY_ALIAS" || { echo "Missing O0AI_KEY_ALIAS repository secret"; exit 1; }
+          test -n "$O0AI_KEY_PASSWORD" || { echo "Missing O0AI_KEY_PASSWORD repository secret"; exit 1; }
+          printf '%s' "$O0AI_KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/o0ai-control-signing.jks"
+          cat > signing.properties <<EOF
+          storeFile=$GITHUB_WORKSPACE/o0ai-control-signing.jks
+          storePassword=$O0AI_KEYSTORE_PASSWORD
+          keyAlias=$O0AI_KEY_ALIAS
+          keyPassword=$O0AI_KEY_PASSWORD
+          EOF
+
       - name: Build APKs
         run: gradle --no-daemon :app:assembleDebug :app:assembleRelease
 

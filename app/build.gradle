@@ -2,9 +2,30 @@ plugins {
     id 'com.android.application'
 }
 
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file('signing.properties')
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+def hasStableSigning = signingProperties.getProperty('storeFile')
+        && signingProperties.getProperty('storePassword')
+        && signingProperties.getProperty('keyAlias')
+        && signingProperties.getProperty('keyPassword')
+
 android {
     namespace 'com.o0ai.control'
     compileSdk 34
+
+    signingConfigs {
+        stable {
+            if (hasStableSigning) {
+                storeFile file(signingProperties.getProperty('storeFile'))
+                storePassword signingProperties.getProperty('storePassword')
+                keyAlias signingProperties.getProperty('keyAlias')
+                keyPassword signingProperties.getProperty('keyPassword')
+            }
+        }
+    }
 
     buildFeatures {
         buildConfig true
@@ -22,10 +43,12 @@ android {
     buildTypes {
         debug {
             versionNameSuffix '-debug'
+            signingConfig hasStableSigning ? signingConfigs.stable : signingConfigs.debug
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasStableSigning) signingConfig signingConfigs.stable
         }
     }
 }

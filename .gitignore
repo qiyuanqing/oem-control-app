@@ -2,5 +2,8 @@
 build/
 */build/
 local.properties
+signing.properties
+*.jks
+*.keystore
 *.iml
 .idea/
