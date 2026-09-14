@@ -6,6 +6,10 @@ android {
     namespace 'com.o0ai.control'
     compileSdk 34
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId 'com.o0ai.control'
         minSdk 27
