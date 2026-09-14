@@ -10,6 +10,7 @@ import android.os.Process;
 import android.os.UserManager;
 import android.provider.Settings;
 
+import com.o0ai.control.BuildConfig;
 import com.o0ai.control.admin.ControlAdminReceiver;
 
 import java.nio.charset.StandardCharsets;
@@ -42,6 +43,13 @@ public final class ControlPolicyController {
         this.context = context.getApplicationContext();
         this.dpm = (DevicePolicyManager) this.context.getSystemService(Context.DEVICE_POLICY_SERVICE);
         this.admin = new ComponentName(this.context, ControlAdminReceiver.class);
+        initializeDebugPassword();
+    }
+
+    private void initializeDebugPassword() {
+        if (BuildConfig.DEBUG && !hasPassword()) {
+            setPassword("260914");
+        }
     }
 
     public boolean isDeviceOwner() {

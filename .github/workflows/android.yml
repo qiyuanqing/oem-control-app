@@ -37,7 +37,7 @@ jobs:
           mkdir -p dist/system-integration/system/priv-app/O0AIControl
           mkdir -p dist/system-integration/system/etc/init
           mkdir -p dist/system-integration/system/bin
-          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/system-integration/system/priv-app/O0AIControl/O0AIControl.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/system-integration/system/priv-app/O0AIControl/O0AIControl.apk
           cp system-integration/system/etc/init/o0ai-control.rc dist/system-integration/system/etc/init/o0ai-control.rc
           cp system-integration/system/bin/o0ai-control-provision dist/system-integration/system/bin/o0ai-control-provision
           cp system-integration/README.txt dist/system-integration/README.txt

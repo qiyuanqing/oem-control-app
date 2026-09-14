@@ -5,10 +5,13 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -31,7 +34,7 @@ public class AdminActivity extends Activity {
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(32, 32, 32, 32);
+        root.setPadding(32, 32, 32, 64);
 
         TextView title = new TextView(this);
         title.setText("设备管控");
@@ -45,7 +48,21 @@ public class AdminActivity extends Activity {
         password = new EditText(this);
         password.setHint("请输入管理员或工程密码");
         password.setInputType(0x00000081);
+        password.setSingleLine(true);
+        password.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        password.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterPressed = event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_DOWN;
+            if (actionId == EditorInfo.IME_ACTION_DONE || enterPressed) {
+                submitPassword();
+                return true;
+            }
+            return false;
+        });
         root.addView(password);
+
+        addButton(root, "确认密码", v -> submitPassword());
 
         if (!controller.hasPassword()) {
             Button setup = button("设置初始密码");
@@ -66,8 +83,23 @@ public class AdminActivity extends Activity {
             addButton(root, "无障碍服务", v -> openSpecialSettings("accessibility"));
             addButton(root, "设备策略开关", v -> openPolicyOptions());
         }
-        setContentView(root);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(true);
+        scroll.setScrollbarFadingEnabled(false);
+        scroll.addView(root);
+        setContentView(scroll);
         refreshStatus();
+    }
+
+    private void submitPassword() {
+        if (!controller.hasPassword()) {
+            setupPassword();
+        } else if (controller.verifyPassword(password.getText().toString())) {
+            toast("密码正确");
+        } else {
+            toast("密码错误");
+        }
     }
 
     private void setupPassword() {
