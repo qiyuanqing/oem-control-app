@@ -43,10 +43,9 @@ public final class ControlPolicyController {
         this.context = context.getApplicationContext();
         this.dpm = (DevicePolicyManager) this.context.getSystemService(Context.DEVICE_POLICY_SERVICE);
         this.admin = new ComponentName(this.context, ControlAdminReceiver.class);
-        initializeDebugPassword();
     }
 
-    private void initializeDebugPassword() {
+    public synchronized void ensureDebugPassword() {
         if (BuildConfig.DEBUG && !hasPassword()) {
             setPassword("260914");
         }

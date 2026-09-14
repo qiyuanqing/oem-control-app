@@ -1,30 +1,22 @@
 package com.o0ai.control.service;
 
-import android.app.Service;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.Handler;
-import android.os.Looper;
 
 import com.o0ai.control.core.ControlPolicyController;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 public class ControlService extends Service {
     private static final String CHANNEL_ID = "device_control";
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable policyCheck = new Runnable() {
-        @Override
-        public void run() {
-            ControlPolicyController controller = new ControlPolicyController(ControlService.this);
-            if (controller.restoreExpiredTemporarySession()) {
-                controller.applyPolicy();
-            }
-            handler.postDelayed(this, 15_000L);
-        }
-    };
+    private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -39,27 +31,33 @@ public class ControlService extends Service {
                     .setOngoing(true)
                     .build());
         }
-        ControlPolicyController controller = new ControlPolicyController(this);
-        if (controller.isDeviceOwner()) {
-            if (controller.isPermanentMode() && controller.isDebugMode()) {
-                controller.applyDebugPolicy();
-            } else {
-                controller.applyPolicy();
-            }
-        }
-        handler.removeCallbacks(policyCheck);
-        handler.post(policyCheck);
+        worker.execute(() -> applyCurrentPolicy());
         return START_STICKY;
+    }
+
+    private void applyCurrentPolicy() {
+        ControlPolicyController controller = new ControlPolicyController(this);
+        if (!controller.isDeviceOwner()) return;
+        if (controller.isPermanentMode() && controller.isDebugMode()) {
+            controller.applyDebugPolicy();
+        } else {
+            controller.applyPolicy();
+        }
+        worker.schedule(this::restoreExpiredSession, 15, TimeUnit.SECONDS);
+    }
+
+    private void restoreExpiredSession() {
+        ControlPolicyController controller = new ControlPolicyController(this);
+        if (controller.restoreExpiredTemporarySession()) controller.applyPolicy();
+        worker.schedule(this::restoreExpiredSession, 15, TimeUnit.SECONDS);
     }
 
     @Override
     public void onDestroy() {
-        handler.removeCallbacks(policyCheck);
+        worker.shutdownNow();
         super.onDestroy();
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+    public IBinder onBind(Intent intent) { return null; }
 }

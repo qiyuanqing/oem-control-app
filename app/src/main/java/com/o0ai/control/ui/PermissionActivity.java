@@ -5,13 +5,16 @@ import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -25,27 +28,25 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class PermissionActivity extends Activity {
     private static final List<String> MANAGEABLE = Arrays.asList(
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.WRITE_CONTACTS,
-            Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_SMS,
-            Manifest.permission.SEND_SMS,
+            Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS,
+            Manifest.permission.READ_PHONE_STATE, Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_SMS, Manifest.permission.SEND_SMS,
             Manifest.permission.BODY_SENSORS);
 
     private final List<PackageInfo> packages = new ArrayList<>();
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
     private ControlPolicyController controller;
     private Spinner applications;
-    private EditTextWithPassword password;
+    private EditText password;
     private LinearLayout permissions;
 
     @Override
@@ -54,7 +55,7 @@ public class PermissionActivity extends Activity {
         controller = new ControlPolicyController(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(32, 32, 32, 32);
+        content.setPadding(24, 24, 24, 24);
 
         TextView title = new TextView(this);
         title.setText("应用权限管理");
@@ -62,15 +63,10 @@ public class PermissionActivity extends Activity {
         content.addView(title);
 
         applications = new Spinner(this);
-        packages.addAll(loadApplications());
-        List<String> labels = new ArrayList<>();
-        for (PackageInfo info : packages) labels.add(appLabel(info) + "\n" + info.packageName);
-        applications.setAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, labels));
         content.addView(applications);
-
-        password = new EditTextWithPassword(this);
+        password = new EditText(this);
         password.setHint("管理员密码");
+        password.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         content.addView(password);
 
         ScrollView scroll = new ScrollView(this);
@@ -79,19 +75,36 @@ public class PermissionActivity extends Activity {
         scroll.addView(permissions);
         content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(content);
+        addMessage("正在加载应用列表...");
 
         applications.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                rebuildPermissions();
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position >= 0 && position < packages.size()) rebuildPermissions(packages.get(position));
             }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                permissions.removeAllViews();
-            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { permissions.removeAllViews(); }
         });
-        rebuildPermissions();
+
+        worker.execute(() -> {
+            List<PackageInfo> loaded = loadApplications();
+            main.post(() -> {
+                packages.clear();
+                packages.addAll(loaded);
+                List<String> labels = new ArrayList<>();
+                for (PackageInfo info : packages) labels.add(appLabel(info) + "\n" + info.packageName);
+                applications.setAdapter(new ArrayAdapter<>(this,
+                        android.R.layout.simple_spinner_dropdown_item, labels));
+                if (packages.isEmpty()) {
+                    permissions.removeAllViews();
+                    addMessage("没有找到声明运行时权限的应用");
+                }
+            });
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        worker.shutdownNow();
+        super.onDestroy();
     }
 
     private List<PackageInfo> loadApplications() {
@@ -108,35 +121,50 @@ public class PermissionActivity extends Activity {
         return app == null ? info.packageName : getPackageManager().getApplicationLabel(app);
     }
 
-    private void rebuildPermissions() {
+    private void rebuildPermissions(PackageInfo selected) {
         permissions.removeAllViews();
-        if (packages.size() == 0) {
-            addMessage("没有找到声明运行时权限的应用");
-            return;
-        }
-        PackageInfo selected = packages.get(applications.getSelectedItemPosition());
         Set<String> requested = new HashSet<>(Arrays.asList(selected.requestedPermissions));
         for (String permission : MANAGEABLE) {
             if (requested.contains(permission)) addPermissionRow(selected.packageName, permission);
         }
-        if (permissions.getChildCount() == 0) addMessage("该应用没有可由设备管控的运行时权限");
+        if (permissions.getChildCount() == 0) addMessage("该应用没有可管理的运行时权限");
     }
 
     private void addPermissionRow(String packageName, String permission) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
         CheckBox allowed = new CheckBox(this);
         allowed.setText(permissionLabel(permission));
         allowed.setTextSize(17);
-        allowed.setChecked(controller.isRuntimePermissionAllowed(packageName, permission));
+        allowed.setEnabled(false);
+        worker.execute(() -> {
+            boolean checked = controller.isRuntimePermissionAllowed(packageName, permission);
+            main.post(() -> {
+                if (isFinishing()) return;
+                allowed.setChecked(checked);
+                allowed.setEnabled(true);
+            });
+        });
         allowed.setOnClickListener(v -> change(packageName, permission, allowed.isChecked(), allowed));
-        row.addView(allowed, new LinearLayout.LayoutParams(-1, -2));
-        permissions.addView(row);
+        permissions.addView(allowed, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void change(String packageName, String permission, boolean allowed, CheckBox control) {
+        final String value = password.getText().toString();
+        control.setEnabled(false);
+        worker.execute(() -> {
+            boolean updated = controller.verifyPassword(value)
+                    && controller.setRuntimePermission(packageName, permission, allowed);
+            main.post(() -> {
+                control.setEnabled(true);
+                if (!updated) control.setChecked(!allowed);
+                toast(updated ? (allowed ? "权限已允许" : "权限已禁止") : "密码错误或更新失败");
+            });
+        });
     }
 
     private void addMessage(String text) {
         TextView message = new TextView(this);
         message.setText(text);
+        message.setTextColor(Color.DKGRAY);
         permissions.addView(message);
     }
 
@@ -152,27 +180,5 @@ public class PermissionActivity extends Activity {
         return permission;
     }
 
-    private void change(String packageName, String permission, boolean allowed, CheckBox control) {
-        if (!controller.verifyPassword(password.getText().toString())) {
-            control.setChecked(!allowed);
-            toast("密码错误");
-            return;
-        }
-        boolean updated = controller.setRuntimePermission(packageName, permission, allowed);
-        if (!updated) control.setChecked(!allowed);
-        toast(updated
-                ? (allowed ? "权限已允许" : "权限已禁止")
-                : "更新失败：设备不是 Device Owner 或系统不支持");
-    }
-
-    private void toast(String text) {
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
-    }
-
-    private static final class EditTextWithPassword extends android.widget.EditText {
-        EditTextWithPassword(android.content.Context context) {
-            super(context);
-            setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        }
-    }
+    private void toast(String text) { Toast.makeText(this, text, Toast.LENGTH_SHORT).show(); }
 }

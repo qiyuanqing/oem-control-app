@@ -1,13 +1,15 @@
 package com.o0ai.control.ui;
 
 import android.app.Activity;
-import android.app.admin.DevicePolicyManager;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -20,10 +22,19 @@ import android.widget.Toast;
 
 import com.o0ai.control.core.ControlPolicyController;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 public class AdminActivity extends Activity {
+    private interface Task<T> { T run(); }
+    private interface Result<T> { void accept(T value); }
+
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
     private ControlPolicyController controller;
     private EditText password;
     private TextView status;
+    private boolean busy;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -31,34 +42,54 @@ public class AdminActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(10, 14, 20));
         getWindow().setNavigationBarColor(Color.rgb(10, 14, 20));
         controller = new ControlPolicyController(this);
-        buildUi();
-        leaveKioskWhenDebugging();
-        handlePendingDebugAction();
+        showLoading();
+        worker.execute(() -> {
+            controller.ensureDebugPassword();
+            main.post(() -> {
+                if (isFinishing()) return;
+                buildUi();
+                leaveKioskWhenDebugging();
+                handlePendingDebugAction();
+            });
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        worker.shutdownNow();
+        super.onDestroy();
+    }
+
+    private void showLoading() {
+        TextView view = new TextView(this);
+        view.setText("正在加载设备管控...");
+        view.setTextColor(Color.WHITE);
+        view.setTextSize(16);
+        view.setGravity(Gravity.CENTER);
+        view.setBackgroundColor(Color.rgb(10, 14, 20));
+        setContentView(view);
     }
 
     private void buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(10, 14, 20));
-        root.setPadding(dp(18), dp(14), dp(18), dp(40));
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setBackgroundColor(Color.rgb(10, 14, 20));
+        content.setPadding(dp(18), dp(14), dp(18), dp(40));
+        content.addView(toolbar("设备管控", "O0AI CONTROL  /  DEVICE OWNER"));
 
-        root.addView(toolbar("设备管控", "O0AI CONTROL  ·  DEBUG"));
-
-        addSectionLabel(root, "设备状态");
-        LinearLayout statusPanel = panel();
+        addSectionLabel(content, "设备状态");
+        LinearLayout panel = panel();
         status = new TextView(this);
         status.setTextColor(Color.rgb(216, 224, 234));
         status.setTextSize(14);
         status.setTypeface(Typeface.MONOSPACE);
-        status.setLineSpacing(2, 1.0f);
-        statusPanel.addView(status, fullWidth());
-        root.addView(statusPanel);
+        panel.addView(status, fullWidth());
+        content.addView(panel);
 
-        addSectionLabel(root, "管理员验证");
-        LinearLayout authPanel = panel();
-
+        addSectionLabel(content, "管理员验证");
+        LinearLayout auth = panel();
         password = new EditText(this);
-        password.setHint("请输入管理员或工程密码");
+        password.setHint("请输入管理员密码");
         password.setInputType(0x00000081);
         password.setSingleLine(true);
         password.setImeOptions(EditorInfo.IME_ACTION_DONE);
@@ -68,107 +99,96 @@ public class AdminActivity extends Activity {
         password.setPadding(dp(14), 0, dp(14), 0);
         password.setBackground(inputBackground());
         password.setOnEditorActionListener((view, actionId, event) -> {
-            boolean enterPressed = event != null
-                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+            boolean enter = event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                     && event.getAction() == KeyEvent.ACTION_DOWN;
-            if (actionId == EditorInfo.IME_ACTION_DONE || enterPressed) {
+            if (actionId == EditorInfo.IME_ACTION_DONE || enter) {
                 submitPassword();
                 return true;
             }
             return false;
         });
-        authPanel.addView(password, new LinearLayout.LayoutParams(-1, dp(48)));
-
+        auth.addView(password, new LinearLayout.LayoutParams(-1, dp(48)));
         Button verify = primaryButton("确认密码");
         verify.setOnClickListener(v -> submitPassword());
-        authPanel.addView(verify, marginTop(10));
-        root.addView(authPanel);
+        auth.addView(verify, marginTop(10));
+        content.addView(auth);
 
         if (!controller.hasPassword()) {
-            addSectionLabel(root, "首次使用");
-            addMessage(root, "Debug 版本首次打开时可设置密码，密码至少 6 位。");
+            addSectionLabel(content, "首次使用");
+            addMessage(content, "请输入至少 6 位密码完成初始化。");
             Button setup = primaryButton("设置初始密码");
             setup.setOnClickListener(v -> setupPassword());
-            root.addView(setup);
+            content.addView(setup);
         } else {
-            addSectionLabel(root, "设备管控");
-            addButton(root, "应用设备管控策略", v -> requirePassword(true));
-            addButton(root, "恢复系统管控", v -> restore());
-            addButton(root, controller.isPermanentMode() ? "关闭完全授权模式" : "开启完全授权模式",
+            addSectionLabel(content, "设备管控");
+            addButton(content, "应用设备管控策略", v -> requirePassword());
+            addButton(content, "恢复系统管控", v -> restore());
+            addButton(content, controller.isPermanentMode() ? "关闭完全授权模式" : "开启完全授权模式",
                     v -> togglePermanent());
 
-            addSectionLabel(root, "权限与设置");
-            addButton(root, "权限管理", v -> openPermissions());
-            addButton(root, "打开 Wi-Fi 设置", v -> openSettings("wifi"));
-            addButton(root, "打开蓝牙设置", v -> openSettings("bluetooth"));
-            addButton(root, "悬浮窗权限", v -> openSpecialSettings("overlay"));
-            addButton(root, "修改系统设置权限", v -> openSpecialSettings("write"));
-            addButton(root, "通知使用权", v -> openSpecialSettings("notification"));
-            addButton(root, "使用情况访问权限", v -> openSpecialSettings("usage"));
-            addButton(root, "无障碍服务", v -> openSpecialSettings("accessibility"));
-            addButton(root, "设备策略开关", v -> openPolicyOptions());
+            addSectionLabel(content, "权限与设置");
+            addButton(content, "权限管理", v -> openPermissions());
+            addButton(content, "打开 Wi-Fi 设置", v -> openSettings("wifi"));
+            addButton(content, "打开蓝牙设置", v -> openSettings("bluetooth"));
+            addButton(content, "修改系统设置权限", v -> openSpecialSettings("write"));
+            addButton(content, "悬浮窗权限", v -> openSpecialSettings("overlay"));
+            addButton(content, "使用情况访问权限", v -> openSpecialSettings("usage"));
+            addButton(content, "设备策略开关", v -> openPolicyOptions());
         }
+
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(true);
         scroll.setScrollbarFadingEnabled(false);
         scroll.setBackgroundColor(Color.rgb(10, 14, 20));
-        scroll.addView(root);
+        scroll.addView(content);
         setContentView(scroll);
         refreshStatus();
     }
 
     private void submitPassword() {
-        if (!controller.hasPassword()) {
-            setupPassword();
-        } else if (controller.verifyPassword(password.getText().toString())) {
-            toast("密码正确");
-        } else {
-            toast("密码错误");
-        }
+        final String value = password.getText().toString();
+        final boolean hadPassword = controller.hasPassword();
+        runTask(() -> hadPassword
+                ? controller.verifyPassword(value)
+                : controller.setPassword(value), ok -> {
+            toast(ok ? "密码正确" : "密码错误或长度不足");
+            if (ok && !hadPassword) recreate();
+        });
     }
 
     private void setupPassword() {
-        if (controller.setPassword(password.getText().toString())) {
-            toast("初始密码已设置，请重新打开管控页面");
-            recreate();
-        } else toast("密码至少需要 6 位");
+        final String value = password.getText().toString();
+        runTask(() -> controller.setPassword(value), ok -> {
+            toast(ok ? "初始密码已设置" : "密码至少需要 6 位");
+            if (ok) recreate();
+        });
     }
 
-    private void requirePassword(boolean apply) {
-        if (!controller.verifyPassword(password.getText().toString())) {
-            toast("密码错误");
-            return;
-        }
-        if (apply) toast(controller.applyPolicy() ? "设备管控策略已应用" : "应用失败：尚未成为 Device Owner");
-        refreshStatus();
+    private void requirePassword() {
+        final String value = password.getText().toString();
+        runTask(() -> controller.verifyPassword(value) && controller.applyPolicy(), ok -> {
+            toast(ok ? "设备管控策略已应用" : "密码错误或尚未成为 Device Owner");
+            refreshStatus();
+        });
     }
 
     private void restore() {
-        if (!controller.verifyPassword(password.getText().toString())) {
-            toast("密码错误");
-            return;
-        }
-        boolean restored = controller.lock(password.getText().toString());
-        toast(restored ? "已恢复系统管控" : "恢复失败");
-        if (restored) {
-            finish();
-            return;
-        }
-        refreshStatus();
+        final String value = password.getText().toString();
+        runTask(() -> controller.lock(value), ok -> {
+            toast(ok ? "系统管控已恢复" : "恢复失败");
+            if (ok) finish();
+            else refreshStatus();
+        });
     }
 
     private void togglePermanent() {
-        String value = password.getText().toString();
-        if (!controller.verifyPassword(value)) {
-            toast("密码错误");
-            return;
-        }
-        boolean enabled = !controller.isPermanentMode();
-        toast(controller.setPermanentMode(value, enabled)
-                ? (enabled ? "完全授权模式已开启" : "完全授权模式已关闭")
-                : "操作失败");
-        recreate();
+        final String value = password.getText().toString();
+        final boolean enabled = !controller.isPermanentMode();
+        runTask(() -> controller.setPermanentMode(value, enabled), ok -> {
+            toast(ok ? "完全授权模式已更新" : "密码错误或尚未成为 Device Owner");
+            if (ok) recreate();
+        });
     }
 
     private void openPermissions() {
@@ -176,97 +196,100 @@ public class AdminActivity extends Activity {
     }
 
     private void openSettings(String page) {
-        if (!controller.verifyPassword(password.getText().toString())) {
-            toast("密码错误");
-            return;
-        }
-        if (controller.unlock(password.getText().toString(), false)) {
-            startActivity(controller.settingsIntent(page));
-        }
-        else toast("打开失败：尚未成为 Device Owner");
+        final String value = password.getText().toString();
+        runTask(() -> controller.unlock(value, false), ok -> {
+            if (ok) startActivity(controller.settingsIntent(page));
+            else toast("密码错误或尚未成为 Device Owner");
+        });
     }
 
     private void openSpecialSettings(String page) {
-        if (!controller.verifyPassword(password.getText().toString())) {
-            toast("密码错误");
-            return;
-        }
-        Intent intent = new Intent();
-        if ("overlay".equals(page)) {
-            intent.setAction("android.settings.action.MANAGE_OVERLAY_PERMISSION");
-            intent.setData(android.net.Uri.parse("package:" + getPackageName()));
-        } else if ("write".equals(page)) {
-            intent.setAction("android.settings.action.MANAGE_WRITE_SETTINGS");
-            intent.setData(android.net.Uri.parse("package:" + getPackageName()));
-        } else if ("notification".equals(page)) {
-            intent.setAction("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
-        } else if ("usage".equals(page)) {
-            intent.setAction("android.settings.USAGE_ACCESS_SETTINGS");
-        } else {
-            intent.setAction("android.settings.ACCESSIBILITY_SETTINGS");
-        }
-        try {
-            startActivity(intent);
-        } catch (RuntimeException e) {
-            toast("此固件不支持该设置页面");
-        }
+        final String value = password.getText().toString();
+        runTask(() -> controller.verifyPassword(value), ok -> {
+            if (!ok) {
+                toast("密码错误");
+                return;
+            }
+            Intent intent = new Intent();
+            if ("write".equals(page)) {
+                intent.setAction(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+            } else if ("overlay".equals(page)) {
+                intent.setAction(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+            } else {
+                intent.setAction(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+            }
+            try {
+                startActivity(intent);
+            } catch (RuntimeException e) {
+                toast("此系统不支持该设置页面");
+            }
+        });
     }
 
     private void openPolicyOptions() {
-        if (!controller.verifyPassword(password.getText().toString())) {
-            toast("密码错误");
-            return;
-        }
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(10, 14, 20));
-        root.setPadding(dp(18), dp(14), dp(18), dp(40));
-        root.addView(toolbar("设备策略", "可选限制"));
-        addSectionLabel(root, "策略开关");
+        final String value = password.getText().toString();
+        runTask(() -> controller.verifyPassword(value), ok -> {
+            if (ok) showPolicyOptions();
+            else toast("密码错误");
+        });
+    }
+
+    private void showPolicyOptions() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setBackgroundColor(Color.rgb(10, 14, 20));
+        content.setPadding(dp(18), dp(14), dp(18), dp(40));
+        content.addView(toolbar("设备策略", "可选限制"));
+        addSectionLabel(content, "策略开关");
         LinearLayout options = panel();
         addPolicyOption(options, "禁用相机", ControlPolicyController.KEY_CAMERA_DISABLED);
         addPolicyOption(options, "禁止截屏", ControlPolicyController.KEY_SCREEN_CAPTURE_DISABLED);
         addPolicyOption(options, "禁用状态栏", ControlPolicyController.KEY_STATUS_BAR_DISABLED);
-        root.addView(options);
+        content.addView(options);
         ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.rgb(10, 14, 20));
-        scroll.addView(root);
+        scroll.addView(content);
         setContentView(scroll);
     }
 
     private void addPolicyOption(LinearLayout root, String label, String key) {
-        Button button = button(label + "    " + (controller.getOptionalRestriction(key) ? "● 已开启" : "○ 已关闭"));
+        Button button = button(label + "    " + (controller.getOptionalRestriction(key) ? "已开启" : "已关闭"));
         button.setOnClickListener(v -> {
-            boolean enabled = !controller.getOptionalRestriction(key);
-            if (controller.setOptionalRestriction(key, password.getText().toString(), enabled)) {
-                button.setText(label + "    " + (enabled ? "● 已开启" : "○ 已关闭"));
-                toast("策略已更新");
-            } else {
-                toast("更新失败");
-            }
+            final boolean enabled = !controller.getOptionalRestriction(key);
+            runTask(() -> controller.setOptionalRestriction(key, password.getText().toString(), enabled), ok -> {
+                if (ok) button.setText(label + "    " + (enabled ? "已开启" : "已关闭"));
+                toast(ok ? "策略已更新" : "更新失败");
+            });
         });
         root.addView(button);
     }
 
     private void handlePendingDebugAction() {
-        if (!getIntent().getBooleanExtra("open_settings", false)) return;
-        if (controller.isDebugMode()) {
+        if (getIntent().getBooleanExtra("open_settings", false) && controller.isDebugMode()) {
             startActivity(controller.settingsIntent("all"));
         }
     }
 
     private void leaveKioskWhenDebugging() {
         if (!controller.isDebugMode()) return;
-        try {
-            stopLockTask();
-        } catch (IllegalStateException ignored) {
-            // The activity may have been launched before the kiosk task started.
-        }
+        try { stopLockTask(); } catch (IllegalStateException ignored) { }
     }
 
     private void refreshStatus() {
         if (status != null) status.setText(controller.statusText());
+    }
+
+    private <T> void runTask(Task<T> task, Result<T> result) {
+        if (busy) return;
+        busy = true;
+        worker.execute(() -> {
+            T value;
+            try { value = task.run(); }
+            catch (RuntimeException e) { value = null; }
+            final T finalValue = value;
+            main.post(() -> { busy = false; result.accept(finalValue); });
+        });
     }
 
     private void addButton(LinearLayout root, String text, View.OnClickListener listener) {
@@ -281,19 +304,19 @@ public class AdminActivity extends Activity {
         button.setAllCaps(false);
         button.setTextColor(Color.rgb(222, 230, 240));
         button.setTextSize(15);
-        button.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.LEFT);
+        button.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
         button.setPadding(dp(16), 0, dp(16), 0);
         button.setMinHeight(dp(46));
         button.setStateListAnimator(null);
-        button.setBackground(secondaryBackground());
+        button.setBackground(rounded(Color.rgb(29, 38, 50), 6, Color.rgb(49, 63, 80), 1));
         return button;
     }
 
     private Button primaryButton(String text) {
         Button button = button(text);
         button.setTextColor(Color.rgb(6, 19, 22));
-        button.setGravity(android.view.Gravity.CENTER);
-        button.setBackground(primaryBackground());
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(rounded(Color.rgb(92, 207, 192), 6, Color.rgb(92, 207, 192), 1));
         return button;
     }
 
@@ -301,14 +324,12 @@ public class AdminActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.VERTICAL);
         bar.setPadding(0, 0, 0, dp(16));
-
         TextView title = new TextView(this);
         title.setText(titleText);
         title.setTextColor(Color.WHITE);
         title.setTextSize(25);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         bar.addView(title);
-
         TextView subtitle = new TextView(this);
         subtitle.setText(subtitleText);
         subtitle.setTextColor(Color.rgb(92, 207, 192));
@@ -333,7 +354,6 @@ public class AdminActivity extends Activity {
         message.setText(text);
         message.setTextColor(Color.rgb(158, 171, 188));
         message.setTextSize(13);
-        message.setPadding(dp(2), 0, dp(2), dp(10));
         root.addView(message);
     }
 
@@ -341,24 +361,12 @@ public class AdminActivity extends Activity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(12), dp(14), dp(12));
-        panel.setBackground(panelBackground());
+        panel.setBackground(rounded(Color.rgb(22, 29, 38), 8, Color.rgb(42, 54, 68), 1));
         return panel;
-    }
-
-    private GradientDrawable panelBackground() {
-        return rounded(Color.rgb(22, 29, 38), 8, Color.rgb(42, 54, 68), 1);
     }
 
     private GradientDrawable inputBackground() {
         return rounded(Color.rgb(12, 17, 24), 6, Color.rgb(57, 73, 91), 1);
-    }
-
-    private GradientDrawable primaryBackground() {
-        return rounded(Color.rgb(92, 207, 192), 6, Color.rgb(92, 207, 192), 1);
-    }
-
-    private GradientDrawable secondaryBackground() {
-        return rounded(Color.rgb(29, 38, 50), 6, Color.rgb(49, 63, 80), 1);
     }
 
     private GradientDrawable rounded(int fill, int radiusDp, int stroke, int strokeWidth) {
@@ -369,9 +377,7 @@ public class AdminActivity extends Activity {
         return drawable;
     }
 
-    private LinearLayout.LayoutParams fullWidth() {
-        return new LinearLayout.LayoutParams(-1, -2);
-    }
+    private LinearLayout.LayoutParams fullWidth() { return new LinearLayout.LayoutParams(-1, -2); }
 
     private LinearLayout.LayoutParams marginTop(int valueDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(46));
@@ -379,11 +385,7 @@ public class AdminActivity extends Activity {
         return params;
     }
 
-    private int dp(int value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
-    }
+    private int dp(int value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
 
-    private void toast(String text) {
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
-    }
+    private void toast(String text) { Toast.makeText(this, text, Toast.LENGTH_SHORT).show(); }
 }
