@@ -11,9 +11,6 @@ public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         ControlPolicyController controller = new ControlPolicyController(context);
-        // On an OEM-provisioned image this runs during the first boot window.
-        // If the platform does not grant the privileged API, it is a no-op.
-        controller.tryAutoProvisionDeviceOwner();
         if (controller.isDeviceOwner()) {
             if (controller.isPermanentMode() && controller.isDebugMode()) {
                 controller.applyDebugPolicy();

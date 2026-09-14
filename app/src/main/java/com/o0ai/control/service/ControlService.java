@@ -40,7 +40,6 @@ public class ControlService extends Service {
                     .build());
         }
         ControlPolicyController controller = new ControlPolicyController(this);
-        controller.tryAutoProvisionDeviceOwner();
         if (controller.isDeviceOwner()) {
             if (controller.isPermanentMode() && controller.isDebugMode()) {
                 controller.applyDebugPolicy();

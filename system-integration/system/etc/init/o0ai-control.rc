@@ -2,7 +2,7 @@ on post-fs-data
     start o0ai_control_provision
 
 service o0ai_control_provision /system/bin/sh /system/bin/o0ai-control-provision
-    class core
+    class late_start
     user shell
     group shell
     oneshot

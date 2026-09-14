@@ -1,0 +1,30 @@
+#!/system/bin/sh
+
+PKG="com.o0ai.control"
+ADMIN="${PKG}/.admin.ControlAdminReceiver"
+LOG_DIR="/data/local/tmp/o0ai-control"
+LOG_FILE="${LOG_DIR}/provision.log"
+
+mkdir -p "${LOG_DIR}" 2>/dev/null
+exec >>"${LOG_FILE}" 2>&1
+echo "[$(date '+%F %T')] provisioning started"
+
+if dumpsys device_policy 2>/dev/null | grep -q "${PKG}"; then
+    echo "[$(date '+%F %T')] owner already present"
+    exit 0
+fi
+
+attempt=0
+while [ "${attempt}" -lt 120 ]; do
+    if pm path "${PKG}" >/dev/null 2>&1; then
+        if dpm set-device-owner "${ADMIN}"; then
+            echo "[$(date '+%F %T')] owner provisioned"
+            exit 0
+        fi
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+echo "[$(date '+%F %T')] provisioning failed; setup may already be complete"
+exit 0

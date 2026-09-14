@@ -1,6 +1,0 @@
-id=o0ai-control
-name=O0AI 设备管控
-version=0.2.0-auto-owner
-versionCode=2
-author=O0AI Engineering
-description=O0AI SWD 设备管控工程版，提供 Device Owner、Kiosk、权限管理和 USB 调试入口

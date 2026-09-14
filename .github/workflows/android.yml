@@ -32,19 +32,23 @@ jobs:
       - name: Build APKs
         run: gradle --no-daemon :app:assembleDebug :app:assembleRelease
 
-      - name: Package Magisk module
+      - name: Package system integration payload
         run: |
-          rm -f magisk-module/system/priv-app/O0AIControl/.placeholder
-          cp app/build/outputs/apk/debug/app-debug.apk magisk-module/system/priv-app/O0AIControl/O0AIControl.apk
-          chmod 0755 magisk-module/service.sh
-          chmod 0755 magisk-module/system/bin/o0ai-control-provision
+          mkdir -p dist/system-integration/system/priv-app/O0AIControl
+          mkdir -p dist/system-integration/system/etc/init
+          mkdir -p dist/system-integration/system/bin
+          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/system-integration/system/priv-app/O0AIControl/O0AIControl.apk
+          cp system-integration/system/etc/init/o0ai-control.rc dist/system-integration/system/etc/init/o0ai-control.rc
+          cp system-integration/system/bin/o0ai-control-provision dist/system-integration/system/bin/o0ai-control-provision
+          cp system-integration/README.txt dist/system-integration/README.txt
+          chmod 0755 dist/system-integration/system/bin/o0ai-control-provision
           mkdir -p dist
-          (cd magisk-module && zip -r ../dist/o0ai-control-magisk-auto-owner.zip .)
+          (cd dist/system-integration && zip -r ../o0ai-control-system-integration-debug.zip .)
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: o0ai-control-apks
+          name: o0ai-control-system-build
           path: |
             app/build/outputs/apk/**/*.apk
-            dist/o0ai-control-magisk-auto-owner.zip
+            dist/o0ai-control-system-integration-debug.zip

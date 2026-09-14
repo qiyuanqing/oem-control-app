@@ -9,14 +9,12 @@ import android.os.Build;
 import android.os.Process;
 import android.os.UserManager;
 import android.provider.Settings;
-import android.util.Log;
 
 import com.o0ai.control.admin.ControlAdminReceiver;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.lang.reflect.Method;
 
 public final class ControlPolicyController {
     public static final String PACKAGE_NAME = "com.o0ai.control";
@@ -35,7 +33,6 @@ public final class ControlPolicyController {
     private static final String PASSWORD_HASH = "password_hash";
     private static final String PASSWORD_SALT = "password_salt";
     private static final String SETTINGS_PACKAGE = "com.android.settings";
-    private static final String TAG = "O0AIControl";
 
     private final Context context;
     private final DevicePolicyManager dpm;
@@ -49,34 +46,6 @@ public final class ControlPolicyController {
 
     public boolean isDeviceOwner() {
         return dpm != null && dpm.isDeviceOwnerApp(PACKAGE_NAME);
-    }
-
-    /**
-     * OEM-only first-boot provisioning hook. Android does not allow an ordinary
-     * APK to become Device Owner; this succeeds only when the image grants
-     * MANAGE_PROFILE_AND_DEVICE_OWNERS to this platform-signed package and
-     * setup is incomplete.
-     */
-    public boolean tryAutoProvisionDeviceOwner() {
-        if (dpm == null || isDeviceOwner()) return true;
-        try {
-            Method method;
-            try {
-                method = dpm.getClass().getDeclaredMethod(
-                        "setDeviceOwner", ComponentName.class, String.class);
-            } catch (NoSuchMethodException missingOwnerName) {
-                method = dpm.getClass().getDeclaredMethod(
-                        "setDeviceOwner", ComponentName.class);
-            }
-            method.setAccessible(true);
-            Object result = method.getParameterTypes().length == 2
-                    ? method.invoke(dpm, admin, "O0AI 设备管控")
-                    : method.invoke(dpm, admin);
-            return Boolean.TRUE.equals(result) || isDeviceOwner();
-        } catch (ReflectiveOperationException | SecurityException e) {
-            Log.i(TAG, "Automatic Device Owner provisioning not available", e);
-            return false;
-        }
     }
 
     public boolean hasPassword() {
