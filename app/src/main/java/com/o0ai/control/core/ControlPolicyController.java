@@ -255,14 +255,17 @@ public final class ControlPolicyController {
         } catch (SecurityException | UnsupportedOperationException ignored) {
             // Fall through to package manager suspension state.
         }
-        if (Build.VERSION.SDK_INT >= 24) {
-            try {
-                return context.getPackageManager().isPackageSuspended(SETTINGS_PACKAGE);
-            } catch (PackageManager.NameNotFoundException | RuntimeException ignored) {
-                return false;
-            }
+        // Some Android 8.1 vendor framework.jar builds omit the public
+        // PackageManager.isPackageSuspended() method even though the SDK has it.
+        // Reflection keeps the APK loadable on those builds.
+        try {
+            java.lang.reflect.Method method = PackageManager.class
+                    .getMethod("isPackageSuspended", String.class);
+            Object value = method.invoke(context.getPackageManager(), SETTINGS_PACKAGE);
+            return value instanceof Boolean && (Boolean) value;
+        } catch (Throwable ignored) {
+            return false;
         }
-        return false;
     }
 
     private void addRestrictions() {
