@@ -4,6 +4,7 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.UserManager;
@@ -62,6 +63,10 @@ public final class ControlPolicyController {
     private static final String PASSWORD_HASH = "password_hash";
     private static final String PASSWORD_SALT = "password_salt";
     private static final String SETTINGS_PACKAGE = "com.android.settings";
+    private static final String VENDOR_SETTINGS_PACKAGE = "com.dw.setting";
+    private static final String[] SETTINGS_PACKAGES = {
+            SETTINGS_PACKAGE, VENDOR_SETTINGS_PACKAGE
+    };
 
     private final Context context;
     private final DevicePolicyManager dpm;
@@ -224,36 +229,46 @@ public final class ControlPolicyController {
     private boolean suspendSettings(boolean suspended) {
         if (dpm == null || !isDeviceOwner()) return false;
         if (!suspended) {
-            try {
-                dpm.setApplicationHidden(admin, SETTINGS_PACKAGE, false);
-            } catch (RuntimeException ignored) {
-                // Continue; package suspension may still be supported.
+            for (String packageName : SETTINGS_PACKAGES) {
+                try {
+                    dpm.setApplicationHidden(admin, packageName, false);
+                } catch (RuntimeException ignored) { }
             }
         }
-        try {
-            String[] failed = dpm.setPackagesSuspended(
-                    admin, new String[]{SETTINGS_PACKAGE}, suspended);
-            // On several Android 8.1 vendor builds PackageManager state is updated
-            // asynchronously.  A successful DPM call is the reliable result here;
-            // checking immediately can incorrectly roll back a valid policy.
-            if (failed == null || failed.length == 0) return true;
-        } catch (RuntimeException e) {
-            // Some vendor builds reject package suspension for system packages.
+        boolean allSuspended = true;
+        for (String packageName : SETTINGS_PACKAGES) {
+            try {
+                String[] failed = dpm.setPackagesSuspended(
+                        admin, new String[]{packageName}, suspended);
+                if (failed != null && failed.length > 0) allSuspended = false;
+            } catch (RuntimeException e) {
+                allSuspended = false;
+            }
         }
-        try {
-            boolean changed = dpm.setApplicationHidden(admin, SETTINGS_PACKAGE, suspended);
-            return changed && isSettingsRestricted() == suspended;
-        } catch (RuntimeException e) {
-            return false;
+        if (allSuspended) return true;
+
+        boolean allHidden = true;
+        for (String packageName : SETTINGS_PACKAGES) {
+            try {
+                if (!dpm.setApplicationHidden(admin, packageName, suspended)) allHidden = false;
+            } catch (RuntimeException e) {
+                allHidden = false;
+            }
         }
+        return allHidden;
     }
 
     private boolean isSettingsRestricted() {
         if (dpm == null || !isDeviceOwner()) return false;
-        try {
-            if (dpm.isApplicationHidden(admin, SETTINGS_PACKAGE)) return true;
-        } catch (SecurityException | UnsupportedOperationException ignored) {
-            // Fall through to package manager suspension state.
+        for (String packageName : SETTINGS_PACKAGES) {
+            try {
+                if (dpm.isApplicationHidden(admin, packageName)) return true;
+            } catch (SecurityException | UnsupportedOperationException ignored) { }
+            try {
+                ApplicationInfo info = context.getPackageManager()
+                        .getApplicationInfo(packageName, 0);
+                if ((info.flags & ApplicationInfo.FLAG_SUSPENDED) != 0) return true;
+            } catch (PackageManager.NameNotFoundException ignored) { }
         }
         // Some Android 8.1 vendor framework.jar builds omit the public
         // PackageManager.isPackageSuspended() method even though the SDK has it.
@@ -261,8 +276,11 @@ public final class ControlPolicyController {
         try {
             java.lang.reflect.Method method = PackageManager.class
                     .getMethod("isPackageSuspended", String.class);
-            Object value = method.invoke(context.getPackageManager(), SETTINGS_PACKAGE);
-            return value instanceof Boolean && (Boolean) value;
+            for (String packageName : SETTINGS_PACKAGES) {
+                Object value = method.invoke(context.getPackageManager(), packageName);
+                if (value instanceof Boolean && (Boolean) value) return true;
+            }
+            return false;
         } catch (Throwable ignored) {
             return false;
         }
