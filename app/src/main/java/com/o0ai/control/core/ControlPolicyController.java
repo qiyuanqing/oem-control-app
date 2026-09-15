@@ -483,12 +483,9 @@ public final class ControlPolicyController {
     }
 
     public boolean isRuntimePermissionAllowed(String packageName, String permission) {
-        try {
-            return context.getPackageManager().checkPermission(permission, packageName)
-                    == PackageManager.PERMISSION_GRANTED;
-        } catch (PackageManager.NameNotFoundException e) {
-            return false;
-        }
+        if (packageName == null || permission == null) return false;
+        return context.getPackageManager().checkPermission(permission, packageName)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     public void setPendingAction(String action) {
