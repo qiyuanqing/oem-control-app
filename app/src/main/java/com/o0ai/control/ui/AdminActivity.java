@@ -247,6 +247,48 @@ public class AdminActivity extends Activity {
         addPolicyOption(options, "禁用相机", ControlPolicyController.KEY_CAMERA_DISABLED);
         addPolicyOption(options, "禁止截屏", ControlPolicyController.KEY_SCREEN_CAPTURE_DISABLED);
         addPolicyOption(options, "禁用状态栏", ControlPolicyController.KEY_STATUS_BAR_DISABLED);
+        addPolicyOption(options, "禁止 USB 文件传输", ControlPolicyController.KEY_USB_FILE_TRANSFER_DISABLED);
+        addPolicyOption(options, "禁止安装未知来源应用", ControlPolicyController.KEY_UNKNOWN_SOURCES_DISABLED);
+        addPolicyOption(options, "禁止修改日期时间", ControlPolicyController.KEY_DATE_TIME_DISABLED);
+        addPolicyOption(options, "禁止修改语言地区", ControlPolicyController.KEY_LOCALE_DISABLED);
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            addPolicyOption(options, "禁止修改屏幕超时", ControlPolicyController.KEY_SCREEN_TIMEOUT_DISABLED);
+        }
+        addPolicyOption(options, "禁止修改账户", ControlPolicyController.KEY_ACCOUNTS_DISABLED);
+        addPolicyOption(options, "禁止分享位置", ControlPolicyController.KEY_SHARE_LOCATION_DISABLED);
+        addPolicyOption(options, "禁止调节音量", ControlPolicyController.KEY_ADJUST_VOLUME_DISABLED);
+        addPolicyOption(options, "禁止 USB 调试和开发者调试功能", ControlPolicyController.KEY_DEBUGGING_DISABLED);
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            addPolicyOption(options, "禁止解除麦克风静音", ControlPolicyController.KEY_UNMUTE_MICROPHONE_DISABLED);
+        }
+        addSectionLabel(content, "系统限制");
+        LinearLayout systemOptions = panel();
+        addPolicyOption(systemOptions, "禁止安装应用", ControlPolicyController.KEY_INSTALL_APPS_DISABLED);
+        addPolicyOption(systemOptions, "禁止卸载应用", ControlPolicyController.KEY_UNINSTALL_APPS_DISABLED);
+        addPolicyOption(systemOptions, "禁止应用管理", ControlPolicyController.KEY_APPS_CONTROL_DISABLED);
+        addPolicyOption(systemOptions, "禁止安全模式启动", ControlPolicyController.KEY_SAFE_BOOT_DISABLED);
+        addPolicyOption(systemOptions, "禁止恢复出厂设置", ControlPolicyController.KEY_FACTORY_RESET_DISABLED);
+        addPolicyOption(systemOptions, "禁止添加用户", ControlPolicyController.KEY_ADD_USER_DISABLED);
+        addPolicyOption(systemOptions, "禁止修改凭据", ControlPolicyController.KEY_CREDENTIALS_DISABLED);
+        addPolicyOption(systemOptions, "禁止配置 VPN", ControlPolicyController.KEY_VPN_DISABLED);
+        addPolicyOption(systemOptions, "禁止配置网络共享", ControlPolicyController.KEY_TETHERING_DISABLED);
+        addPolicyOption(systemOptions, "禁止修改 Wi-Fi", ControlPolicyController.KEY_WIFI_DISABLED);
+        addPolicyOption(systemOptions, "禁止修改蓝牙", ControlPolicyController.KEY_BLUETOOTH_DISABLED);
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            addPolicyOption(systemOptions, "禁止修改移动网络", ControlPolicyController.KEY_MOBILE_NETWORKS_DISABLED);
+        }
+        addPolicyOption(systemOptions, "禁止修改定位设置", ControlPolicyController.KEY_LOCATION_DISABLED);
+        addPolicyOption(systemOptions, "禁止拨打电话", ControlPolicyController.KEY_OUTGOING_CALLS_DISABLED);
+        addPolicyOption(systemOptions, "禁止短信", ControlPolicyController.KEY_SMS_DISABLED);
+        addPolicyOption(systemOptions, "禁止挂载外部存储", ControlPolicyController.KEY_MOUNT_MEDIA_DISABLED);
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
+            addPolicyOption(systemOptions, "禁止数据漫游", ControlPolicyController.KEY_DATA_ROAMING_DISABLED);
+            addPolicyOption(systemOptions, "禁止网络重置", ControlPolicyController.KEY_NETWORK_RESET_DISABLED);
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            addPolicyOption(systemOptions, "禁止修改默认应用", ControlPolicyController.KEY_DEFAULT_APPS_DISABLED);
+        }
+        content.addView(systemOptions);
         content.addView(options);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(content);
@@ -257,7 +299,8 @@ public class AdminActivity extends Activity {
         Button button = button(label + "    " + (controller.getOptionalRestriction(key) ? "已开启" : "已关闭"));
         button.setOnClickListener(v -> {
             final boolean enabled = !controller.getOptionalRestriction(key);
-            runTask(() -> controller.setOptionalRestriction(key, password.getText().toString(), enabled), ok -> {
+            final String value = password.getText().toString();
+            runTask(() -> controller.setOptionalRestriction(key, value, enabled), ok -> {
                 if (ok) button.setText(label + "    " + (enabled ? "已开启" : "已关闭"));
                 toast(ok ? "策略已更新" : "更新失败");
             });

@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class ControlService extends Service {
     private static final String CHANNEL_ID = "device_control";
     private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
+    private boolean periodicCheckStarted;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -32,6 +33,13 @@ public class ControlService extends Service {
                     .build());
         }
         worker.execute(() -> applyCurrentPolicy());
+        synchronized (this) {
+            if (!periodicCheckStarted) {
+                periodicCheckStarted = true;
+                worker.scheduleWithFixedDelay(this::restoreExpiredSession,
+                        15, 15, TimeUnit.SECONDS);
+            }
+        }
         return START_STICKY;
     }
 
@@ -43,13 +51,11 @@ public class ControlService extends Service {
         } else {
             controller.applyPolicy();
         }
-        worker.schedule(this::restoreExpiredSession, 15, TimeUnit.SECONDS);
     }
 
     private void restoreExpiredSession() {
         ControlPolicyController controller = new ControlPolicyController(this);
         if (controller.restoreExpiredTemporarySession()) controller.applyPolicy();
-        worker.schedule(this::restoreExpiredSession, 15, TimeUnit.SECONDS);
     }
 
     @Override
