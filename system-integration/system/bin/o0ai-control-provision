@@ -5,26 +5,40 @@ ADMIN="${PKG}/.admin.ControlAdminReceiver"
 LOG_DIR="/data/local/tmp/o0ai-control"
 LOG_FILE="${LOG_DIR}/provision.log"
 
+MAX_ATTEMPTS=300
+SLEEP_SECONDS=1
+
 mkdir -p "${LOG_DIR}" 2>/dev/null
 exec >>"${LOG_FILE}" 2>&1
 echo "[$(date '+%F %T')] provisioning started"
 
-if dumpsys device_policy 2>/dev/null | grep -q "${PKG}"; then
+if dumpsys device_policy 2>/dev/null | grep -q "${PKG}/.admin.ControlAdminReceiver"; then
     echo "[$(date '+%F %T')] owner already present"
     exit 0
 fi
 
 attempt=0
-while [ "${attempt}" -lt 120 ]; do
-    if pm path "${PKG}" >/dev/null 2>&1; then
-        if dpm set-device-owner "${ADMIN}"; then
-            echo "[$(date '+%F %T')] owner provisioned"
-            exit 0
-        fi
+while [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; do
+    # dpm needs system_server and PackageManager to be ready.  Avoid calling
+    # it during the earliest post-fs-data window when it always fails.
+    if ! pm path "${PKG}" >/dev/null 2>&1; then
+        echo "[$(date '+%F %T')] waiting for ${PKG}"
+        attempt=$((attempt + 1))
+        sleep "${SLEEP_SECONDS}"
+        continue
     fi
+
+    result=$(dpm set-device-owner --user 0 "${ADMIN}" 2>&1)
+    code=$?
+    echo "[$(date '+%F %T')] dpm exit=${code}: ${result}"
+    if [ "${code}" -eq 0 ] && dumpsys device_policy 2>/dev/null | grep -q "${PKG}/.admin.ControlAdminReceiver"; then
+        echo "[$(date '+%F %T')] owner provisioned"
+        exit 0
+    fi
+
     attempt=$((attempt + 1))
-    sleep 1
+    sleep "${SLEEP_SECONDS}"
 done
 
-echo "[$(date '+%F %T')] provisioning failed; setup may already be complete"
+echo "[$(date '+%F %T')] provisioning failed after ${MAX_ATTEMPTS} attempts"
 exit 0

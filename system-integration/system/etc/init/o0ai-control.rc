@@ -5,4 +5,5 @@ service o0ai_control_provision /system/bin/sh /system/bin/o0ai-control-provision
     class late_start
     user shell
     group shell
+    disabled
     oneshot
