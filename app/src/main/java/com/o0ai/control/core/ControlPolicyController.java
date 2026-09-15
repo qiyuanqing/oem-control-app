@@ -157,7 +157,7 @@ public final class ControlPolicyController {
             dpm.setLockTaskPackages(admin, new String[]{PACKAGE_NAME});
             addRestrictions();
             applyOptionalRestrictions(true);
-            return true;
+            return suspendSettings(true);
         } catch (SecurityException e) {
             return false;
         }
@@ -169,7 +169,7 @@ public final class ControlPolicyController {
             dpm.setLockTaskPackages(admin, new String[]{PACKAGE_NAME, SETTINGS_PACKAGE});
             removeRestrictions();
             applyOptionalRestrictions(false);
-            return true;
+            return suspendSettings(false);
         } catch (SecurityException e) {
             return false;
         }
@@ -181,8 +181,20 @@ public final class ControlPolicyController {
             dpm.setLockTaskPackages(admin, new String[]{PACKAGE_NAME});
             addRestrictions();
             applyOptionalRestrictions(true);
-            return true;
+            return suspendSettings(true);
         } catch (SecurityException e) {
+            return false;
+        }
+    }
+
+    /** Suspends Settings while locked so its activities cannot be launched. */
+    private boolean suspendSettings(boolean suspended) {
+        if (dpm == null || !isDeviceOwner()) return false;
+        try {
+            String[] failed = dpm.setPackagesSuspended(
+                    admin, new String[]{SETTINGS_PACKAGE}, suspended);
+            return failed == null || failed.length == 0;
+        } catch (SecurityException | UnsupportedOperationException e) {
             return false;
         }
     }
@@ -307,9 +319,18 @@ public final class ControlPolicyController {
     }
 
     public String statusText() {
+        boolean settingsSuspended = false;
+        if (Build.VERSION.SDK_INT >= 24) {
+            try {
+                settingsSuspended = context.getPackageManager().isPackageSuspended(SETTINGS_PACKAGE);
+            } catch (RuntimeException ignored) {
+                // Some vendor Android builds do not expose suspension state.
+            }
+        }
         return "Device Owner=" + isDeviceOwner()
                 + "\n完全授权模式=" + isPermanentMode()
                 + "\n当前调试模式=" + isDebugMode()
+                + "\n系统设置已暂停=" + settingsSuspended
                 + "\n相机禁用=" + getOptionalRestriction(KEY_CAMERA_DISABLED)
                 + "\n禁止截屏=" + getOptionalRestriction(KEY_SCREEN_CAPTURE_DISABLED)
                 + "\n状态栏禁用=" + getOptionalRestriction(KEY_STATUS_BAR_DISABLED)
