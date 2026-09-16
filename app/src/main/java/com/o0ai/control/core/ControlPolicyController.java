@@ -58,6 +58,7 @@ public final class ControlPolicyController {
 
     public static final String ACTION_UNLOCK = "unlock";
     public static final String ACTION_OPEN_SETTINGS = "open_settings";
+    private static final long TEMP_UNLOCK_DURATION_MS = 60L * 60L * 1000L;
 
     private static final String PREFS = "control_policy";
     private static final String PASSWORD_HASH = "password_hash";
@@ -154,7 +155,9 @@ public final class ControlPolicyController {
         if (!verifyPassword(password)) return false;
         if (permanentRequest && !isPermanentMode()) return false;
         if (!applyDebugPolicy()) return false;
-        long until = permanentRequest ? Long.MAX_VALUE : System.currentTimeMillis() + 10 * 60 * 1000L;
+        long until = permanentRequest
+                ? Long.MAX_VALUE
+                : System.currentTimeMillis() + TEMP_UNLOCK_DURATION_MS;
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putBoolean(KEY_DEBUG_MODE, true)
                 .putLong(KEY_DEBUG_UNTIL, until)
