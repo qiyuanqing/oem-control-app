@@ -4,12 +4,15 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.text.InputType;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.ScrollView;
@@ -21,7 +24,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/** Network control page that does not launch the frozen Settings package. */
 public final class WifiActivity extends Activity {
     private static final int BG = 0xff000000, BAR = 0xff242424, CARD = 0xff1f1f1f;
     private static final int WHITE = 0xfff2f2f2, MUTED = 0xffa9a9a9, BLUE = 0xff1597f5;
@@ -65,7 +67,7 @@ public final class WifiActivity extends Activity {
         Switch toggle = new Switch(this); toggle.setChecked(wifi != null && wifi.isWifiEnabled());
         toggle.setOnCheckedChangeListener((button, checked) -> { if (wifi != null) wifi.setWifiEnabled(checked); refreshNetwork(); });
         row.addView(toggle, new LinearLayout.LayoutParams(dp(74), -1)); card.addView(row);
-        card.setOnClickListener(v -> scanDialog()); body.addView(card, cardParams(194));
+        card.setOnClickListener(v -> showNetworks()); body.addView(card, cardParams(194));
     }
 
     private void addCard(LinearLayout body, String title, String subtitle, String icon, ToggleAction action, boolean tall) {
@@ -78,20 +80,53 @@ public final class WifiActivity extends Activity {
         card.addView(row); body.addView(card, cardParams(tall ? 310 : 142));
     }
 
-    private void scanDialog() {
+    private void showNetworks() {
         if (wifi == null || !wifi.isWifiEnabled()) { toast("请先开启 WLAN"); return; }
-        wifi.startScan(); List<ScanResult> results = wifi.getScanResults();
+        wifi.startScan();
+        List<ScanResult> results = wifi.getScanResults();
         if (results == null) results = Collections.emptyList();
         Collections.sort(results, Comparator.comparingInt((ScanResult r) -> r.level).reversed());
-        List<String> names = new ArrayList<>(); for (ScanResult r : results) if (r.SSID != null && !r.SSID.isEmpty() && !names.contains(r.SSID)) names.add(r.SSID);
-        if (names.isEmpty()) names.add("未发现可用网络");
-        final List<String> items = names;
-        new AlertDialog.Builder(this).setTitle("WLAN 网络").setItems(items.toArray(new String[0]), (d, which) -> toast("已选择 " + items.get(which))).setNegativeButton("取消", null).show();
+        final List<ScanResult> networks = new ArrayList<>();
+        for (ScanResult result : results) {
+            if (result.SSID == null || result.SSID.isEmpty()) continue;
+            boolean duplicate = false;
+            for (ScanResult old : networks) if (old.SSID.equals(result.SSID)) duplicate = true;
+            if (!duplicate) networks.add(result);
+        }
+        if (networks.isEmpty()) { toast("未发现可用网络"); return; }
+        String[] names = new String[networks.size()];
+        for (int i = 0; i < networks.size(); i++) names[i] = networks.get(i).SSID;
+        new AlertDialog.Builder(this).setTitle("WLAN").setItems(names, (dialog, which) -> showPassword(networks.get(which))).setNegativeButton("取消", null).show();
     }
 
-    private void showMenu(View anchor) { PopupMenu p = new PopupMenu(this, anchor); p.getMenu().add("扫描网络"); p.getMenu().add("重置 WLAN、移动数据网络..."); p.setOnMenuItemClickListener(item -> { if (item.getTitle().toString().startsWith("扫描")) scanDialog(); else toast("网络设置已重置"); return true; }); p.show(); }
+    private void showPassword(ScanResult network) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true); input.setHint("密码");
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        new AlertDialog.Builder(this).setTitle(network.SSID).setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("连接", (dialog, which) -> connect(network, input.getText().toString())).show();
+    }
+
+    private void connect(ScanResult network, String password) {
+        WifiConfiguration config = new WifiConfiguration(); config.SSID = quote(network.SSID);
+        String capabilities = network.capabilities == null ? "" : network.capabilities;
+        if (capabilities.contains("WEP")) {
+            config.wepKeys[0] = quote(password); config.wepTxKeyIndex = 0;
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
+        } else if (capabilities.contains("WPA")) config.preSharedKey = quote(password);
+        else config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        int id = wifi.addNetwork(config);
+        if (id < 0) { toast("无法添加网络"); return; }
+        boolean ok = wifi.disconnect() && wifi.enableNetwork(id, true) && wifi.reconnect();
+        toast(ok ? "正在连接" : "连接失败"); refreshNetwork();
+    }
+
+    private void showMenu(View anchor) { PopupMenu p = new PopupMenu(this, anchor); p.getMenu().add("扫描网络"); p.getMenu().add("重置 WLAN、移动数据网络..."); p.setOnMenuItemClickListener(item -> { if (item.getTitle().toString().startsWith("扫描")) showNetworks(); else toast("网络设置已重置"); return true; }); p.show(); }
     private String currentNetwork() { if (wifi == null || !wifi.isWifiEnabled()) return "已关闭"; WifiInfo i = wifi.getConnectionInfo(); String s = i == null ? null : i.getSSID(); return s == null || "<unknown ssid>".equals(s) ? "未连接" : s.replace("\"", ""); }
     private void refreshNetwork() { if (wlanState != null) wlanState.setText(currentNetwork()); }
+    private static String quote(String value) { return "\"" + value.replace("\"", "\\\"") + "\""; }
     private LinearLayout card() { LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(10), dp(10), dp(10)); v.setBackground(round(CARD, 18)); return v; }
     private LinearLayout.LayoutParams cardParams(int h) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(h)); p.setMargins(0, dp(5), 0, dp(5)); return p; }
     private TextView label(String s, int size, int color) { TextView v = new TextView(this); v.setText(s); v.setTextSize(size); v.setTextColor(color); v.setGravity(Gravity.CENTER_VERTICAL); return v; }
