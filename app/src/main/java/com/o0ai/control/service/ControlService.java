@@ -46,7 +46,7 @@ public class ControlService extends Service {
     private void applyCurrentPolicy() {
         ControlPolicyController controller = new ControlPolicyController(this);
         if (!controller.isDeviceOwner()) return;
-        if (controller.isPermanentMode() && controller.isDebugMode()) {
+        if (controller.isDebugMode()) {
             controller.applyDebugPolicy();
         } else {
             controller.applyPolicy();
