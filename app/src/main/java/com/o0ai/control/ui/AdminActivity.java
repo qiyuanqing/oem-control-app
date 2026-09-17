@@ -272,7 +272,6 @@ public class AdminActivity extends Activity {
         addPolicyOption(systemOptions, "禁止修改凭据", ControlPolicyController.KEY_CREDENTIALS_DISABLED);
         addPolicyOption(systemOptions, "禁止配置 VPN", ControlPolicyController.KEY_VPN_DISABLED);
         addPolicyOption(systemOptions, "禁止配置网络共享", ControlPolicyController.KEY_TETHERING_DISABLED);
-        addPolicyOption(systemOptions, "禁止修改 Wi-Fi", ControlPolicyController.KEY_WIFI_DISABLED);
         addPolicyOption(systemOptions, "禁止修改蓝牙", ControlPolicyController.KEY_BLUETOOTH_DISABLED);
         if (android.os.Build.VERSION.SDK_INT >= 28) {
             addPolicyOption(systemOptions, "禁止修改移动网络", ControlPolicyController.KEY_MOBILE_NETWORKS_DISABLED);

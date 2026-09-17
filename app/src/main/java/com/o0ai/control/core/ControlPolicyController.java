@@ -290,6 +290,10 @@ public final class ControlPolicyController {
     }
 
     private void addRestrictions() {
+        // Wi-Fi must remain configurable. Also clear restrictions left by older builds.
+        remove(UserManager.DISALLOW_CONFIG_WIFI);
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean(KEY_WIFI_DISABLED, false).apply();
         addIfEnabled(UserManager.DISALLOW_INSTALL_APPS, KEY_INSTALL_APPS_DISABLED);
         addIfEnabled(UserManager.DISALLOW_UNINSTALL_APPS, KEY_UNINSTALL_APPS_DISABLED);
         addIfEnabled(UserManager.DISALLOW_APPS_CONTROL, KEY_APPS_CONTROL_DISABLED);
@@ -300,7 +304,6 @@ public final class ControlPolicyController {
         addIfEnabled(UserManager.DISALLOW_CONFIG_CREDENTIALS, KEY_CREDENTIALS_DISABLED);
         addIfEnabled(UserManager.DISALLOW_CONFIG_VPN, KEY_VPN_DISABLED);
         addIfEnabled(UserManager.DISALLOW_CONFIG_TETHERING, KEY_TETHERING_DISABLED);
-        addIfEnabled(UserManager.DISALLOW_CONFIG_WIFI, KEY_WIFI_DISABLED);
         addIfEnabled(UserManager.DISALLOW_CONFIG_BLUETOOTH, KEY_BLUETOOTH_DISABLED);
         addIfEnabled(UserManager.DISALLOW_USB_FILE_TRANSFER, KEY_USB_FILE_TRANSFER_DISABLED);
         addIfEnabled(UserManager.DISALLOW_CONFIG_DATE_TIME, KEY_DATE_TIME_DISABLED);
@@ -462,7 +465,6 @@ public final class ControlPolicyController {
                 || KEY_CREDENTIALS_DISABLED.equals(key)
                 || KEY_VPN_DISABLED.equals(key)
                 || KEY_TETHERING_DISABLED.equals(key)
-                || KEY_WIFI_DISABLED.equals(key)
                 || KEY_BLUETOOTH_DISABLED.equals(key)
                 || KEY_MOBILE_NETWORKS_DISABLED.equals(key)
                 || KEY_LOCATION_DISABLED.equals(key)
@@ -489,7 +491,6 @@ public final class ControlPolicyController {
                 || KEY_CREDENTIALS_DISABLED.equals(key)
                 || KEY_VPN_DISABLED.equals(key)
                 || KEY_TETHERING_DISABLED.equals(key)
-                || KEY_WIFI_DISABLED.equals(key)
                 || KEY_BLUETOOTH_DISABLED.equals(key)
                 || KEY_MOBILE_NETWORKS_DISABLED.equals(key);
     }
@@ -543,7 +544,7 @@ public final class ControlPolicyController {
                 .append("\n状态栏禁用=").append(getOptionalRestriction(KEY_STATUS_BAR_DISABLED))
                 .append("\n调试功能禁用=").append(getOptionalRestriction(KEY_DEBUGGING_DISABLED))
                 .append("\n安装应用禁用=").append(getOptionalRestriction(KEY_INSTALL_APPS_DISABLED))
-                .append("\nWi-Fi 配置禁用=").append(getOptionalRestriction(KEY_WIFI_DISABLED))
+                .append("\nWi-Fi 配置禁用=false")
                 .append("\n蓝牙配置禁用=").append(getOptionalRestriction(KEY_BLUETOOTH_DISABLED))
                 .append("\n表冠映射由甲方软件处理");
         return out.toString();
