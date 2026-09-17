@@ -16,7 +16,6 @@ import android.telephony.TelephonyManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -100,7 +99,6 @@ public final class WifiActivity extends Activity {
         addMobileCard(body);
         addTrafficCard(body);
         addHotspotCard(body);
-        addFlightCard(body);
         addBatteryCard(body);
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -176,27 +174,6 @@ public final class WifiActivity extends Activity {
                 button.setChecked(false);
                 toast("当前系统不允许应用控制热点");
             } else state.setText(checked ? "开启" : "关闭");
-        });
-        row.addView(toggle, new LinearLayout.LayoutParams(dp(74), -1));
-        card.addView(row);
-        body.addView(card, cardParams(142));
-    }
-
-    private void addFlightCard(LinearLayout body) {
-        LinearLayout card = card();
-        LinearLayout row = row("✈");
-        LinearLayout words = words("飞行模式");
-        row.addView(words, new LinearLayout.LayoutParams(0, -1, 1));
-        Switch toggle = new Switch(this);
-        toggle.setChecked(isAirplaneMode());
-        toggle.setOnCheckedChangeListener((button, checked) -> {
-            try {
-                Settings.Global.putInt(getContentResolver(), Settings.Global.AIRPLANE_MODE_ON, checked ? 1 : 0);
-                sendBroadcast(new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED).putExtra("state", checked));
-            } catch (SecurityException e) {
-                button.setChecked(!checked);
-                toast("当前系统不允许应用控制飞行模式");
-            }
         });
         row.addView(toggle, new LinearLayout.LayoutParams(dp(74), -1));
         card.addView(row);
@@ -282,7 +259,6 @@ public final class WifiActivity extends Activity {
         } catch (Throwable ignored) { return false; }
     }
 
-    private boolean isAirplaneMode() { return Settings.Global.getInt(getContentResolver(), Settings.Global.AIRPLANE_MODE_ON, 0) != 0; }
     private void refreshNetworkState() { if (wlanState != null) wlanState.setText(currentNetwork()); if (wifiSwitch != null && wifi != null) wifiSwitch.setChecked(wifi.isWifiEnabled()); if (mobileState != null) mobileState.setText(mobileSummary()); if (mobileSwitch != null) mobileSwitch.setChecked(isMobileDataEnabled()); }
     private void refreshTraffic() { if (trafficState != null) trafficState.setText("已使用 " + formatBytes(TrafficStats.getTotalRxBytes() + TrafficStats.getTotalTxBytes())); }
     private String currentNetwork() { if (wifi == null || !wifi.isWifiEnabled()) return "已关闭"; WifiInfo info = wifi.getConnectionInfo(); String ssid = info == null ? null : info.getSSID(); return ssid == null || "<unknown ssid>".equals(ssid) ? "未连接" : ssid.replace("\"", ""); }
