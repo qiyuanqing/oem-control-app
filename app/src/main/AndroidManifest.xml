@@ -46,7 +46,7 @@
 
         <activity
             android:name=".ui.WifiActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="Wi-Fi" />
 
         <receiver
