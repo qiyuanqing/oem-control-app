@@ -196,6 +196,10 @@ public class AdminActivity extends Activity {
     }
 
     private void openSettings(String page) {
+        if ("wifi".equals(page)) {
+            startActivity(new Intent(this, WifiActivity.class));
+            return;
+        }
         final String value = password.getText().toString();
         runTask(() -> controller.unlock(value, false), ok -> {
             if (ok) startActivity(controller.settingsIntent(page));
