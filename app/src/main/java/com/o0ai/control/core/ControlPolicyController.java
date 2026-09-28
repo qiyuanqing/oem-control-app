@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.UserManager;
 import android.provider.Settings;
 
@@ -275,9 +276,9 @@ public final class ControlPolicyController {
     }
 
     private boolean areRestrictionsCleared() {
-        UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-        if (userManager == null) return false;
-        String[] restrictions = {
+        Bundle restrictions = dpm.getUserRestrictions(admin);
+        if (restrictions == null) return false;
+        String[] restrictionKeys = {
                 UserManager.DISALLOW_INSTALL_APPS,
                 UserManager.DISALLOW_UNINSTALL_APPS,
                 UserManager.DISALLOW_APPS_CONTROL,
@@ -301,19 +302,19 @@ public final class ControlPolicyController {
                 UserManager.DISALLOW_SMS,
                 UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA
         };
-        for (String restriction : restrictions) {
-            if (userManager.hasUserRestriction(restriction)) return false;
+        for (String restriction : restrictionKeys) {
+            if (restrictions.getBoolean(restriction, false)) return false;
         }
         if (Build.VERSION.SDK_INT >= 24
-                && (userManager.hasUserRestriction(UserManager.DISALLOW_DATA_ROAMING)
-                || userManager.hasUserRestriction(UserManager.DISALLOW_NETWORK_RESET))) return false;
+                && (restrictions.getBoolean(UserManager.DISALLOW_DATA_ROAMING, false)
+                || restrictions.getBoolean(UserManager.DISALLOW_NETWORK_RESET, false))) return false;
         if (Build.VERSION.SDK_INT >= 26
-                && (userManager.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
-                || userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_DEFAULT_APPS))) return false;
+                && (restrictions.getBoolean(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES, false)
+                || restrictions.getBoolean(UserManager.DISALLOW_CONFIG_DEFAULT_APPS, false))) return false;
         if (Build.VERSION.SDK_INT >= 28
-                && (userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_SCREEN_TIMEOUT)
-                || userManager.hasUserRestriction(UserManager.DISALLOW_UNMUTE_MICROPHONE)
-                || userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_MOBILE_NETWORKS))) return false;
+                && (restrictions.getBoolean(UserManager.DISALLOW_CONFIG_SCREEN_TIMEOUT, false)
+                || restrictions.getBoolean(UserManager.DISALLOW_UNMUTE_MICROPHONE, false)
+                || restrictions.getBoolean(UserManager.DISALLOW_CONFIG_MOBILE_NETWORKS, false))) return false;
         try {
             return !dpm.isUninstallBlocked(admin, PACKAGE_NAME);
         } catch (RuntimeException ignored) {
