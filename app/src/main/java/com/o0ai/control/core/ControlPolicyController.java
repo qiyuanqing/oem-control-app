@@ -154,16 +154,24 @@ public final class ControlPolicyController {
     public boolean unlock(String password, boolean permanentRequest) {
         if (!verifyPassword(password)) return false;
         if (permanentRequest && !isPermanentMode()) return false;
-        if (!applyDebugPolicy()) return false;
         long until = permanentRequest
                 ? Long.MAX_VALUE
                 : System.currentTimeMillis() + TEMP_UNLOCK_DURATION_MS;
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        boolean wasDebug = prefs.getBoolean(KEY_DEBUG_MODE, false);
+        long previousUntil = prefs.getLong(KEY_DEBUG_UNTIL, 0L);
+        prefs.edit()
                 .putBoolean(KEY_DEBUG_MODE, true)
                 .putLong(KEY_DEBUG_UNTIL, until)
                 .putString(KEY_PENDING_ACTION, ACTION_UNLOCK)
                 .apply();
-        return true;
+        if (applyDebugPolicy()) return true;
+        android.content.SharedPreferences.Editor rollback = prefs.edit()
+                .putBoolean(KEY_DEBUG_MODE, wasDebug);
+        if (previousUntil == 0L) rollback.remove(KEY_DEBUG_UNTIL);
+        else rollback.putLong(KEY_DEBUG_UNTIL, previousUntil);
+        rollback.remove(KEY_PENDING_ACTION).apply();
+        return false;
     }
 
     public boolean lock(String password) {
@@ -209,6 +217,7 @@ public final class ControlPolicyController {
         try {
             dpm.setLockTaskPackages(admin, new String[]{PACKAGE_NAME, SETTINGS_PACKAGE});
             removeRestrictions();
+            if (!areRestrictionsCleared()) return false;
             applyOptionalRestrictions(false);
             return suspendSettings(false);
         } catch (SecurityException e) {
@@ -248,7 +257,11 @@ public final class ControlPolicyController {
                 allSuspended = false;
             }
         }
-        if (allSuspended) return true;
+        if (allSuspended) return suspended || !isSettingsRestricted();
+
+        // Hiding an application does not clear its suspended state. Treat a
+        // failed unsuspend as a failure instead of reporting an unlock success.
+        if (!suspended) return false;
 
         boolean allHidden = true;
         for (String packageName : SETTINGS_PACKAGES) {
@@ -258,7 +271,54 @@ public final class ControlPolicyController {
                 allHidden = false;
             }
         }
-        return allHidden;
+        return allHidden && isSettingsRestricted();
+    }
+
+    private boolean areRestrictionsCleared() {
+        UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        if (userManager == null) return false;
+        String[] restrictions = {
+                UserManager.DISALLOW_INSTALL_APPS,
+                UserManager.DISALLOW_UNINSTALL_APPS,
+                UserManager.DISALLOW_APPS_CONTROL,
+                UserManager.DISALLOW_SAFE_BOOT,
+                UserManager.DISALLOW_FACTORY_RESET,
+                UserManager.DISALLOW_ADD_USER,
+                UserManager.DISALLOW_DEBUGGING_FEATURES,
+                UserManager.DISALLOW_CONFIG_CREDENTIALS,
+                UserManager.DISALLOW_CONFIG_VPN,
+                UserManager.DISALLOW_CONFIG_TETHERING,
+                UserManager.DISALLOW_CONFIG_WIFI,
+                UserManager.DISALLOW_CONFIG_BLUETOOTH,
+                UserManager.DISALLOW_USB_FILE_TRANSFER,
+                UserManager.DISALLOW_CONFIG_DATE_TIME,
+                UserManager.DISALLOW_CONFIG_LOCALE,
+                UserManager.DISALLOW_MODIFY_ACCOUNTS,
+                UserManager.DISALLOW_SHARE_LOCATION,
+                UserManager.DISALLOW_ADJUST_VOLUME,
+                UserManager.DISALLOW_CONFIG_LOCATION,
+                UserManager.DISALLOW_OUTGOING_CALLS,
+                UserManager.DISALLOW_SMS,
+                UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA
+        };
+        for (String restriction : restrictions) {
+            if (userManager.hasUserRestriction(restriction)) return false;
+        }
+        if (Build.VERSION.SDK_INT >= 24
+                && (userManager.hasUserRestriction(UserManager.DISALLOW_DATA_ROAMING)
+                || userManager.hasUserRestriction(UserManager.DISALLOW_NETWORK_RESET))) return false;
+        if (Build.VERSION.SDK_INT >= 26
+                && (userManager.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+                || userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_DEFAULT_APPS))) return false;
+        if (Build.VERSION.SDK_INT >= 28
+                && (userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_SCREEN_TIMEOUT)
+                || userManager.hasUserRestriction(UserManager.DISALLOW_UNMUTE_MICROPHONE)
+                || userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_MOBILE_NETWORKS))) return false;
+        try {
+            return !dpm.isUninstallBlocked(admin, PACKAGE_NAME);
+        } catch (RuntimeException ignored) {
+            return true;
+        }
     }
 
     private boolean isSettingsRestricted() {

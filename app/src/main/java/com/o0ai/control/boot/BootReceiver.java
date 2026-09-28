@@ -22,7 +22,7 @@ public class BootReceiver extends BroadcastReceiver {
                 ControlPolicyController controller = new ControlPolicyController(appContext);
                 controller.ensureDebugPassword();
                 if (controller.isDeviceOwner()) {
-                    if (controller.isPermanentMode() && controller.isDebugMode()) {
+                    if (controller.isDebugMode()) {
                         controller.applyDebugPolicy();
                     } else {
                         controller.applyPolicy();
